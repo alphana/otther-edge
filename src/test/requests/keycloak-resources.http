@@ -1,0 +1,34 @@
+### Authorization by token, part 1. Retrieve and save token.
+POST http://localhost:8080/auth/realms/beans/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{client_id}}&client_secret={{client_secret}}&grant_type=password&username=reader-user&password=test
+
+> {% client.global.set("client_auth_token", response.body.access_token); %}
+
+### Authorization by token, part 1. Retrieve and save token.
+POST http://localhost:8080/auth/realms/beans/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{authz_client_id}}&client_secret={{authz_client_secret}}&grant_type=client_credentials
+
+> {% client.global.set("authz_auth_token", response.body.access_token); %}
+
+
+
+### Current Client list
+GET http://localhost:8080/auth/admin/realms/beans/clients/24018e7b-92aa-4586-8cad-a5ac9ec1166e/authz/resource-server/resource?first=0&max=11&deep=true
+Accept: application/json
+Authorization: Bearer {{authz_auth_token}}
+
+### Resources list
+GET http://localhost:8080/auth/admin/realms/beans/clients/24018e7b-92aa-4586-8cad-a5ac9ec1166e/authz/resource-server/resource?
+    first=0&max=11&deep=false
+Accept: application/json
+Authorization: Bearer {{client_auth_token}}
+
+###
+GET http://localhost:9090/api/1/resource/
+Accept: application/json
+Authorization: Bearer {{client_auth_token}}
+

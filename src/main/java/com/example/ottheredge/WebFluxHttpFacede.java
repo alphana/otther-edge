@@ -59,7 +59,7 @@ public class WebFluxHttpFacede implements HttpRequest, HttpResponse {
 
         ServerHttpRequest request =exchange.getRequest();
         List<String> authorizationHeaderValues = request.getHeaders().getOrEmpty("Authorization");
-        authorizationHeaderValues.addAll(request.getHeaders().getOrEmpty("authorization"));
+//        authorizationHeaderValues.addAll(request.getHeaders().getOrEmpty("authorization"));
 
         return authorizationHeaderValues.stream()
                 .filter(header-> header.startsWith("Bearer"))

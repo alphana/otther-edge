@@ -20,11 +20,15 @@ repositories {
 
 ext {
     set('springCloudVersion', "2023.0.0-SNAPSHOT")
+
 }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
+    implementation 'org.keycloak:keycloak-core:22.0.4'
+    implementation 'org.keycloak:keycloak-policy-enforcer:22.0.4'
+
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
