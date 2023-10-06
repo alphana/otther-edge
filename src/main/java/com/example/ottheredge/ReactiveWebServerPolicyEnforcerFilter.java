@@ -18,6 +18,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.ReactiveAuthorizationManager;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -27,6 +28,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.server.resource.BearerTokenError;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+import org.springframework.security.web.server.WebFilterExchange;
 import org.springframework.web.reactive.function.server.RequestPredicates;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -47,44 +49,34 @@ public class ReactiveWebServerPolicyEnforcerFilter implements WebFilter {
     private final Map<PolicyEnforcerConfig, PolicyEnforcer> policyEnforcerTenantMap;
 //    private ReactiveAuthorizationManager<? super ServerWebExchange> authorizationManager;
 
-    public ReactiveWebServerPolicyEnforcerFilter(){ //ReactiveAuthorizationManager<? super ServerWebExchange> authorizationManager) {
+    public ReactiveWebServerPolicyEnforcerFilter() { //ReactiveAuthorizationManager<? super ServerWebExchange> authorizationManager) {
 //        this.authorizationManager = authorizationManager;
         policyEnforcerTenantMap = Collections.synchronizedMap(new HashMap<>());
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+
+
         return ReactiveSecurityContextHolder.getContext()
                 .filter((c) -> c.getAuthentication() != null)
                 .map(SecurityContext::getAuthentication)
-                .as((authentication) ->
-                        {
-//                            this.authorizationManager.verify(authentication, exchange);
+                .as((authentication) -> {
+                    PolicyEnforcer policyEnforcer = getOrCreatePolicyEnforcer(exchange);
+                    WebFluxHttpFacede httpFacade = new WebFluxHttpFacede(exchange);
+                    AuthorizationContext result = policyEnforcer.enforce(httpFacade, httpFacade);
+                  if(!result.isGranted()){
+                      return Mono.error(new AccessDeniedException("Access Denied"));
+                  }
+                  return Mono.empty();
 
-                            PolicyEnforcer policyEnforcer = getOrCreatePolicyEnforcer(exchange);
-
-                            WebFluxHttpFacede httpFacade = new WebFluxHttpFacede(exchange);
-
-                            AuthorizationContext result = policyEnforcer.enforce(httpFacade, httpFacade);
-
-                            if (result.isGranted()) {
-                                return handleAuthenticationFailure(exchange.getResponse(),new AuthenticationServiceException(""));
-                            }
-
-                            return Mono.empty();
-
-                        }
-
-                )
+                })
+                .then()
                 .doOnSuccess((it) -> logger.debug("Authorization successful"))
                 .doOnError(AccessDeniedException.class,
-                        (ex) -> logger.debug("Authorization failed"))
-                .then()
+                        (ex) -> logger.debug(LogMessage.format("Authorization failed: %s", ex.getMessage())))
                 .switchIfEmpty(chain.filter(exchange));
     }
-
-
-
 
 
     private PolicyEnforcer getOrCreatePolicyEnforcer(ServerWebExchange exchange) {
@@ -95,15 +87,15 @@ public class ReactiveWebServerPolicyEnforcerFilter implements WebFilter {
 //                return createPolicyEnforcer(exchange, enforcerConfig);
 //            }
 //        });
-        PolicyEnforcerConfig enforcerConfig=new PolicyEnforcerConfig();
+        PolicyEnforcerConfig enforcerConfig = new PolicyEnforcerConfig();
 
 
         enforcerConfig.setAuthServerUrl("http://localhost:8080/auth");
         enforcerConfig.setResource("gw-edge-service-client");
         enforcerConfig.setRealm("beans");
-        enforcerConfig.setCredentials(Map.of("secret","77nT9BRBlzJWd0GpwACyzQVrmmFdHNIv"));
+        enforcerConfig.setCredentials(Map.of("secret", "77nT9BRBlzJWd0GpwACyzQVrmmFdHNIv"));
 
-        return createPolicyEnforcer(exchange,enforcerConfig);
+        return createPolicyEnforcer(exchange, enforcerConfig);
     }
 
 
@@ -112,15 +104,16 @@ public class ReactiveWebServerPolicyEnforcerFilter implements WebFilter {
         response.setRawStatusCode(HttpStatus.UNAUTHORIZED.value());
         OAuth2Error error = oauth2Error(ex);
         byte[] bytes = String.format("""
-				{
-					"error_code": "%s",
-					"error_description": "%s",
-					"error_uri: "%s"
-				}
-				""", error.getErrorCode(), error.getDescription(), error.getUri()).getBytes(StandardCharsets.UTF_8);
+                {
+                	"error_code": "%s",
+                	"error_description": "%s",
+                	"error_uri: "%s"
+                }
+                """, error.getErrorCode(), error.getDescription(), error.getUri()).getBytes(StandardCharsets.UTF_8);
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         return response.writeWith(Flux.just(buffer));
     }
+
     private OAuth2Error oauth2Error(Exception ex) {
         if (ex instanceof OAuth2AuthenticationException oauth2) {
             return oauth2.getError();
@@ -128,6 +121,7 @@ public class ReactiveWebServerPolicyEnforcerFilter implements WebFilter {
         return new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT, ex.getMessage(),
                 "https://openid.net/specs/openid-connect-backchannel-1_0.html#Validation");
     }
+
     protected PolicyEnforcer createPolicyEnforcer(ServerWebExchange exchange, PolicyEnforcerConfig enforcerConfig) {
         String authServerUrl = enforcerConfig.getAuthServerUrl();
 

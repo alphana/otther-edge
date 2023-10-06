@@ -20,7 +20,7 @@ import org.springframework.web.server.WebFilter;
 import java.io.IOException;
 
 @Configuration
-@EnableWebSecurity
+//@EnableWebSecurity
 public class SecurityConfiguration {
 
     @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")

@@ -1,0 +1,30 @@
+server:
+  port: 9090
+
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    gateway:
+      routes:
+        - id: resource-service
+          uri: http://localhost:8081  # Replace with your resource service URL
+          predicates:
+            - Path=/api/1/resource/**
+          filters:
+            - StripPrefix=1
+#            - RequestHashing=SHA-256
+  #            - RoleBasedAuthorizationFilter=
+
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/auth/realms/beans/protocol/openid-connect/certs #http://localhost:8080/oauth2/jwks
+          issuer-uri: http://localhost:8080/auth/realms/beans
+
+logging:
+  level:
+    org.springframework.security: trace
